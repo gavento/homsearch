@@ -154,21 +154,12 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
   vi = 0
   cdef int deg, vi_deg = 0
   for i in range(tomap_c):
-    deg = 0
-    for j in range(n):
-      if partmap[j] >= 0:
-        if G.has_arc(tomap[i], j):
-          deg += 1
-        if G.has_arc(j, tomap[i]):
-          deg += 1
-    #print ("%d,%d" % (deg, adjdeg[tomap[i]])),
-    assert deg == adjdeg[tomap[i]]
+    deg = adjdeg[tomap[i]]
     if deg > vi_deg:
       vi_deg = deg
       vi = i
 
   v = tomap[vi]
-  print v
   # copy tomap to tomap2, remove v from tomap2
   cdef int *tomap2 = <int *>alloca(sizeof(int) * n)
   memcpy(tomap2, tomap, sizeof(int) * n)
@@ -189,9 +180,9 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
     for u in range(n):
       fu = partmap2[u]
       if fu >= 0:
-        if G.has_arc(u, v) and (H.has_arc(fu, fv) == 0):
+        if G.has_arc_unsafe(u, v) and (H.has_arc_unsafe(fu, fv) == 0):
           ok = 0
-        if G.has_arc(v, u) and (H.has_arc(fv, fu) == 0):
+        if G.has_arc_unsafe(v, u) and (H.has_arc_unsafe(fv, fu) == 0):
           ok = 0
     # Recurse
     if ok:
@@ -199,9 +190,9 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
       memcpy(adjdeg2, adjdeg, sizeof(int) * n)
       for j in range(n):
         if partmap2[j] < 0:
-          if G.has_arc(j, v):
+          if G.has_arc_unsafe(j, v):
             adjdeg2[j] += 1
-          if G.has_arc(v, j):
+          if G.has_arc_unsafe(v, j):
             adjdeg2[j] += 1
 
       r = extend_hom_c(G, H, partmap2, tomap2, tomap_c-1, adjdeg2, resmaps, reslimit)
