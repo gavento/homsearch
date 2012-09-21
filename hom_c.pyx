@@ -34,10 +34,10 @@ def graph_to_cgraph(G, vmap=None, imap=None, graphtype=DenseGraph):
   return CG
 
 
-def extend_hom(G, H, partmap = None, reslimit = 1):
+def extend_hom(G, H, partmap = None, limit = 1):
   """
   Recursive routine to extend partial homomorphism G->H given by partmap to a
-  full homomorphism. Finds up to reslimit solutions. Works correctly on digraphs.
+  full homomorphism. Finds up to limit solutions. Works correctly on digraphs.
   If a partial map is provided, homomorphism correctness is not checked on set vertices.
 
   Parameters:
@@ -45,7 +45,7 @@ def extend_hom(G, H, partmap = None, reslimit = 1):
     H         target Graph
               Note that the vertices should be hashable values.
     partmap   partial map {v: f(v)}, empty by default
-    reslimit  maximum number of homomorphisms to look for, default 1
+    limit     maximum number of homomorphisms to look for, default 1
 
   Returns:
     list of mappings {v: f(v)}
@@ -65,18 +65,18 @@ def extend_hom(G, H, partmap = None, reslimit = 1):
   # General init
   n = len(CG.verts())
 
-  cdef int** resmaps_c = <int **>alloca(sizeof(int*) * reslimit)
-  for i in range(reslimit):
+  cdef int** resmaps_c = <int **>alloca(sizeof(int*) * limit)
+  for i in range(limit):
     resmaps_c[i] = <int *>alloca(sizeof(int) * n)
 
   cdef int *partmap_c = <int *>alloca(sizeof(int) * n)
   for v in G.vertices():
     if v in partmap:
-      partmap_c[Gvmap[v]] = Gvmap[partmap[v]]
+      partmap_c[Gvmap[v]] = Hvmap[partmap[v]]
     else:
       partmap_c[Gvmap[v]] = -1
 
-  r = extend_hom_c(CG, CH, partmap_c, NULL, -1, NULL, resmaps_c, reslimit)
+  r = extend_hom_c(CG, CH, partmap_c, NULL, -1, NULL, resmaps_c, limit)
   res = []
   for i in range(r):
     new = {}
@@ -89,10 +89,10 @@ def extend_hom(G, H, partmap = None, reslimit = 1):
 
 cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
                       int tomap[], int tomap_c, int adjdeg[],
-                      int** resmaps, int reslimit):
+                      int** resmaps, int limit):
   """
   Recursive routine to extend partial homomorphism G->H given by partmap to a
-  full homomorphism. Finds up to reslimit solutions, storing them in resmaps.
+  full homomorphism. Finds up to limit solutions, storing them in resmaps.
   Works correctly on digraphs.
 
   Parameters:
@@ -104,9 +104,9 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
               if NULL, created according to partmap
     tomap_c   number of vertices to map, ignored if tomap==NULL
     resmaps   array of int[n] pointers to store complete maps,
-              size must be at least reslimit
+              size must be at least limit
               if NULL, no results are written (just counted)
-    reslimit  maximum number of homomorphisms to look for
+    limit     maximum number of homomorphisms to look for
 
   Return value: number of homomorphisms found and returned in resmaps
   """
@@ -115,7 +115,7 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
   cdef int m = H.num_verts
   cdef int i, j
 
-  if reslimit <= 0:
+  if limit <= 0:
     return 0
 
   if tomap == NULL:
@@ -195,9 +195,9 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
           if G.has_arc_unsafe(v, j):
             adjdeg2[j] += 1
 
-      r = extend_hom_c(G, H, partmap2, tomap2, tomap_c-1, adjdeg2, resmaps, reslimit)
+      r = extend_hom_c(G, H, partmap2, tomap2, tomap_c-1, adjdeg2, resmaps, limit)
       numres += r
-      reslimit -= r
+      limit -= r
       if resmaps != NULL:
         resmaps += r
   return numres
