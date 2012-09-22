@@ -30,12 +30,13 @@ def check_some_squash_or_core(G):
   if len(G.vertices()) <= 1:
     return True
   for c in G.vertices():
-    if sum(c) > 0:
-      hom = squash_cube(G, c)
-      if hom:
+    if sum(map(int,c)) > 0:
+      h = hom.squash_cube(G, c)
+      if h:
+        log.debug("Squashable by %s", c)
         return True
   # No squash worked
-  H = find_core(G, vertex_trans=True)
+  H = hom.find_core(G, vertex_trans=True)
   if H.order() == G.order():
     # G itself core
     return True
@@ -46,12 +47,14 @@ def check_prop_for_all(prop, n):
   """
   Check prop(G)->True/False for all n-dim cube-like graphs.
   For example: check_prop_for_all(check_some_squash_or_core, 4)
-  Returns first found offenders as pair (gens, G), or None.
+  Returns list of failed graphs as pairs (gens, G).
   """
+  fails = []
   for gen, G in hom.nonisomorphic_cubes_Z2(n):
     if not prop(G):
-      return gen, G
-  return None
+      log.debug("Prop failed: G with gen %s", gen)
+      fails.append((gen, G))
+  return fails
 
 
 def check_cores_are_cubelike(n):
@@ -64,6 +67,7 @@ def check_cores_are_cubelike(n):
   for gen, G in hom.nonisomorphic_cubes_Z2(n):
     H = hom.find_core(G)
     if H.order() == G.order():
+      print "G itself core, gen by", gen
       continue
     Hcanon = tuple(hom.Graph(H).canonical_label().edges())
     if Hcanon in smaller_cores_canon:
@@ -71,3 +75,16 @@ def check_cores_are_cubelike(n):
     print "Not a cube-like core", H, "of", G, "gen by", gen
     return False
   return True
+
+
+def check_some_core_hom_is_by_subspace(vs, G, H=None, require_isomorphic=True, limit=10000):
+  """
+  Check if there is a retract from G to H that "contracts" a subspace of vs.
+  See hom.hom_is_by_subspace. If not given, H is a core of G.
+  Returns True/False.
+  """
+  if not H:
+    H = hom.find_core(G)
+  return any((hom.hom_is_by_subspace(G, vs, h) for h in hom.extend_hom(G, H, limit=limit)))
+
+

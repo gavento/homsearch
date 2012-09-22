@@ -191,14 +191,49 @@ def is_hom(G, H, hom):
       return False
   return True
 
+
+def hom_is_by_subspace(G, vs, h, require_isomorphic=True):
+  """
+  Check whether for a given homomorphism `h`, there is a subspace `span` of `vs` such that
+  `h` unifies exactly vertices differing by element of `span` (alternatively: `h` factorizes
+  the vertices of `G` by a subspace of `vs`).
+
+  If you specify require_isomorphic=False, each of the unified vertex group is checked to be an
+  affine subspace, but these subspaces are not required to be isomorphic.
+
+  Returns True/False.
+  """
+  span_com = None
+  for im in h.values():
+    src = [vs(v) for v in G if h[v] == im]
+    src0 = [i - src[0] for i in src]
+    span = vs.span(src0)
+    if len(src0) < 2**span.dimension():
+      # log.debug("Dim of span too large %d for %s from %s", span.dimension(), src0, src)
+      return False
+    if require_isomorphic:
+      if span_com is None:
+        span_com = span
+      if span_com != span:
+        # log.debug("Subspaces not isomorphic: %s vs %s", span, span_com)
+        return False
+  return True
+
+
+## Module unit testing
+
+
 def raises(f):
+  "Internal helper for testing."
   try:
     f()
   except:
     return True
   return False
 
+
 def test():
+  "Run unit tests for the module."
   log.getLogger().setLevel(log.DEBUG)
 
   from sage.graphs.graph_generators import graphs
@@ -244,6 +279,17 @@ def test():
   assert raises(lambda: is_hom(K2, K2, {0:0})) # not all vertices mapped
   assert raises(lambda: is_hom(K2, K2, {0:4})) # some vertices outside K2
   assert not is_hom(K2, K2, {0:0, 1:0}) # creates a loop
+
+  # hom_is_by_subspace
+  Gg = CayleyGraph(Z2_3, [(1,0,0), (0,1,0)])
+  Hg = CayleyGraph(Z2_2, [(1,0), (0,1), (1,1)])
+  homg = {(0,0,0):(0,0), (1,0,0):(1,0), (0,1,0):(0,1), (1,1,0):(1,1),
+          (0,0,1):(0,0), (1,0,1):(1,0), (0,1,1):(1,1), (1,1,1):(0,1)}
+  assert is_hom(Gg, Hg, homg)
+  assert hom_is_by_subspace(Gg, Z2_3, homg, require_isomorphic=False)
+  assert not hom_is_by_subspace(Gg, Z2_3, homg, require_isomorphic=True)
+  for h in extend_hom(Gg, K2, limit=10):
+    assert hom_is_by_subspace(Gg, Z2_3, h, require_isomorphic=True)
 
   log.info("All tests passed.")
 
