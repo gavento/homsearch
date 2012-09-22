@@ -1,0 +1,65 @@
+Dear coworkers from KAMAK,
+
+this is a writeup of few computed results/observations on the problem
+"cores of cube-like graphs". I have also written a library for cube-lige
+graphs (generating, squashing) and finding homomorphisms (general (di)graphs).
+Below, n is the dimensionality of Z_2^n, the number of vertices is 2^n.
+
+
+Result: All graphs with n<=4 have cube-like cores "check_cores_are_cubelike(4)"
+
+
+Result: Most cores for n<=4 are K_n, EXCEPT for the graphs gen by:
+
+  * [(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
+     (1, 1, 1, 1)]
+
+  * [(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
+     (1, 1, 0, 0), (1, 0, 1, 0), (0, 1, 1, 0), (1, 0, 0, 1), (0, 1, 0, 1),
+     (0, 0, 1, 1)]
+
+These are cores themselves.
+
+
+Result: Most graphs with n<=4 are either cores or squashable in some
+direction, EXCEPT for the graphs gen by:
+
+  * [(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
+     (0, 1, 1, 0), (1, 0, 0, 1)]
+     Core: K_4; has no retract of size 8
+
+  * [(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
+     (0, 1, 1, 0), (1, 1, 1, 0), (1, 0, 0, 1), (1, 1, 0, 1), (0, 0, 1, 1)]
+     Core: K_4; has no retract of size 8
+
+
+Result: All graphs with n<=4 have a core retraction that contracts parallel
+affine subspaces (factors the graph vertices by a subspace).
+
+So it is NOT true that if you can "contract" by a subspace S, you can also
+"contract" by any (or even some) subspace of S.
+
+
+
+The implementation is in Sage (python and cython):
+
+hom_c.pyx module is the homomorphism enumeration algorithm (with simple
+  heuristic for next vertex to map) in Cython
+
+hom.py module contains Cayley graph generation, finding retractions, cores,
+  "squashing" along a direction, verifying homomorphisms, finding retraction
+  that factor by subspaces. This also contains a unit-test suite.
+
+hom_experiments.py contains some experiments, verifying some of the
+  hypotheses. See the docs.
+
+To use, just run sage in the dir with these sources and run "import hom" and
+"import hom_experiments". Then try "hom.test()" or try something like
+"unsquashable=hom_experiments.check_prop_for_all(hom_experiments.check_some_squash_or_core, 4)"
+
+
+
+I will be happy to answer any questions and help with any further tests.
+
+Good luck with further research,
+  Tomas
