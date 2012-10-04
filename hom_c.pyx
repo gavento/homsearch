@@ -1,7 +1,8 @@
 
 from sage.graphs.base.dense_graph import DenseGraph
-from sage.graphs.base.dense_graph cimport CGraph
 
+
+from sage.graphs.base.dense_graph cimport CGraph
 
 cdef extern from "string.h":
   void *memcpy(void *dest, void *src, size_t n)
@@ -34,18 +35,46 @@ def graph_to_cgraph(G, vmap=None, imap=None, graphtype=DenseGraph):
   return CG
 
 
-def extend_hom(G, H, partmap = None, limit = 1):
+def order_max_adjacent(G, ordered = None):
+  if ordered is None:
+    ordered = set([])
+  ordered = set(ordered)
+  assert ordered.issubset(set(G.vertices()))
+
+  if len(ordered) == G.order():
+    return []
+
+  vmax = None
+  adjmax = -1
+  for v in G.vertices():
+    if v not in ordered:
+      adj = len([u for u in G.neighbors(v) if u in ordered])
+      if adj > adjmax:
+        adjmax = adj
+        vmax = v
+  assert adjmax >= 0
+
+  return [vmax] + order_max_adjacent(G, ordered.union([vmax]))
+
+
+def extend_hom(G, H, partmap = None, order = None, limit = 1,
+               Ggraphtype=DenseGraph, Hgraphtype=DenseGraph):
   """
   Recursive routine to extend partial homomorphism G->H given by partmap to a
   full homomorphism. Finds up to limit solutions. Works correctly on digraphs.
   If a partial map is provided, homomorphism correctness is not checked on set vertices.
 
   Parameters:
-    G         source Graph
-    H         target Graph
-              Note that the vertices should be hashable values.
-    partmap   partial map {v: f(v)}, empty by default
-    limit     maximum number of homomorphisms to look for, default 1
+    G         Source Graph.
+    H         Target Graph.
+              Note that the vertices of both G and H should be hashable values.
+    partmap   Partial map {v: f(v)}, empty by default.
+    order     Sequence of all the unmapped vertices of G giving the order for
+              the backtracking. Already mapped vertices are ignored.
+              Defaults to heuristic order_max_adjacent().
+    limit     Maximum number of homomorphisms to look for and return, default 1.
+    Ggraphtype, Hgraphtype     The CGraph class to use for C representation of G
+              and H. DenseGraph by default.
 
   Returns:
     list of mappings {v: f(v)}
@@ -54,13 +83,18 @@ def extend_hom(G, H, partmap = None, limit = 1):
   if partmap is None:
     partmap = {}
 
+  if order is None:
+    order = order_max_adjacent(G, partmap.keys())
+  order = [v for v in order if v not in partmap.keys()]
+  assert set(order).union(set(partmap.keys())) == set(G.vertices())
+
   # Preprocess to CGraphs
   Gimap = {}
   Gvmap = {}
-  CG = graph_to_cgraph(G, vmap=Gvmap, imap=Gimap)
+  CG = graph_to_cgraph(G, vmap=Gvmap, imap=Gimap, graphtype=Ggraphtype)
   Himap = {}
   Hvmap = {}
-  CH = graph_to_cgraph(H, vmap=Hvmap, imap=Himap)
+  CH = graph_to_cgraph(H, vmap=Hvmap, imap=Himap, graphtype=Hgraphtype)
 
   # General init
   n = len(CG.verts())
@@ -76,19 +110,23 @@ def extend_hom(G, H, partmap = None, limit = 1):
     else:
       partmap_c[Gvmap[v]] = -1
 
-  r = extend_hom_c(CG, CH, partmap_c, NULL, -1, NULL, resmaps_c, limit)
+  cdef int *order_c = <int *>alloca(sizeof(int) * n)
+  for i in range(len(order)):
+    order_c[i] = Gvmap[order[i]]
+
+  r = extend_hom_c(CG, CH, partmap_c, order_c, len(order), resmaps_c, limit)
   res = []
   for i in range(r):
     new = {}
     for j in range(n):
-      # Convert vertex mapping back to back
+      # Convert vertex mapping back to G and H
       new[Gimap[j]] = Himap[resmaps_c[i][j]]
     res.append(new)
 
   return res
 
 cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
-                      int tomap[], int tomap_c, int adjdeg[],
+                      int tomap[], int tomap_c,
                       int** resmaps, int limit):
   """
   Recursive routine to extend partial homomorphism G->H given by partmap to a
@@ -96,17 +134,18 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
   Works correctly on digraphs.
 
   Parameters:
-    G         source CGraph
-    H         target CGraph
-    partmap   partial map, partmap[v]=f(v), must be -1 for unmapped vertices
-              if NULL, created as empty map
-    tomap     list of unmapped vertices (in positions 0..tomap_c-1)
-              if NULL, created according to partmap
-    tomap_c   number of vertices to map, ignored if tomap==NULL
-    resmaps   array of int[n] pointers to store complete maps,
-              size must be at least limit
-              if NULL, no results are written (just counted)
-    limit     maximum number of homomorphisms to look for
+    G         Source CGraph.
+    H         Target CGraph.
+    partmap   Partial map, partmap[v]=f(v), must be -1 for unmapped vertices.
+              If NULL, created as empty map.
+    tomap     List of unmapped vertices in the order to be assigned by the
+              backtracking routine. Must not contain vertices already in partmap.
+              If NULL, use the numeric order on the unmapped vertices of G.
+    tomap_c   Number of vertices to map, ignored if tomap==NULL.
+    resmaps   Array of int[n] pointers to store complete maps,
+              size must be at least limit.
+              If NULL, no results are written (just counted).
+    limit     Maximum number of homomorphisms to look for.
 
   Return value: number of homomorphisms found and returned in resmaps
   """
@@ -118,6 +157,11 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
   if limit <= 0:
     return 0
 
+  if partmap == NULL:
+    partmap = <int *>alloca(sizeof(int) * n)
+    for i in range(n):
+      partmap[i] = -1
+
   if tomap == NULL:
     tomap = <int *>alloca(sizeof(int) * n)
     tomap_c = 0
@@ -126,49 +170,18 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
         tomap[tomap_c] = i
         tomap_c += 1
 
-  if partmap == NULL:
-    partmap = <int *>alloca(sizeof(int) * n)
-    for i in range(n):
-      partmap[i] = -1
-
-  if adjdeg == NULL:
-    adjdeg = <int *>alloca(sizeof(int) * n)
-    for i in range(n):
-      adjdeg[i] = 0
-    for i in range(n):
-      if partmap[i] >= 0:
-        for j in range(n):
-          if G.has_arc(i, j):
-            adjdeg[j] += 1
-          if G.has_arc(j, i):
-            adjdeg[j] += 1
-
   if tomap_c == 0:
     if resmaps != NULL:
       memcpy(resmaps[0], partmap, n * sizeof(int))
     return 1
 
 
-  # pick a node index to map
-  # TODO: be smarter ;-)
-  vi = 0
-  cdef int deg, vi_deg = 0
-  for i in range(tomap_c):
-    deg = adjdeg[tomap[i]]
-    if deg > vi_deg:
-      vi_deg = deg
-      vi = i
+  v = tomap[0]
 
-  v = tomap[vi]
-  # copy tomap to tomap2, remove v from tomap2
-  cdef int *tomap2 = <int *>alloca(sizeof(int) * n)
-  memcpy(tomap2, tomap, sizeof(int) * n)
-  tomap2[vi] = tomap2[tomap_c-1]
   # copy partmap to partmap2
   cdef int *partmap2 = <int *>alloca(sizeof(int) * n)
   memcpy(partmap2, partmap, sizeof(int) * n)
-  # copy of adjdeg
-  cdef int *adjdeg2 = <int *>alloca(sizeof(int) * n)
+
   # try all possibilities for w=f(v)
   cdef int numres = 0
   cdef int fv, ok, u, fu, r
@@ -186,16 +199,7 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
           ok = 0
     # Recurse
     if ok:
-      # update candidate degrees
-      memcpy(adjdeg2, adjdeg, sizeof(int) * n)
-      for j in range(n):
-        if partmap2[j] < 0:
-          if G.has_arc_unsafe(j, v):
-            adjdeg2[j] += 1
-          if G.has_arc_unsafe(v, j):
-            adjdeg2[j] += 1
-
-      r = extend_hom_c(G, H, partmap2, tomap2, tomap_c-1, adjdeg2, resmaps, limit)
+      r = extend_hom_c(G, H, partmap2, tomap + 1, tomap_c - 1, resmaps, limit)
       numres += r
       limit -= r
       if resmaps != NULL:

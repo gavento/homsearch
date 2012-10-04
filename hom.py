@@ -293,3 +293,27 @@ def test():
 
   log.info("All tests passed.")
 
+def benchmark():
+  "Run few simple benchmarks for extend_hom()."
+  log.getLogger().setLevel(log.DEBUG)
+
+  from sage.graphs.graph_generators import graphs
+  from sage.misc.sage_timeit import sage_timeit
+
+  K6 = graphs.CompleteGraph(6)
+  K2 = graphs.CompleteGraph(2)
+  K7_6 = graphs.CompleteBipartiteGraph(7, 6)
+  C16 = graphs.CycleGraph(16)
+  C13 = graphs.CycleGraph(13)
+  C5 = graphs.CycleGraph(5)
+  eh = extend_hom
+
+  log.info("All homs K6 -> K6: %s", sage_timeit(
+    "assert len(eh(K6, K6, limit=10000)) == 720", locals(), preparse=False))
+
+  log.info("All homs K7,6 -> K2: %s", sage_timeit(
+    "assert len(eh(K7_6, K2, limit=10000)) == 2", locals(), preparse=False))
+
+  log.info("All homs C13 -> C5: %s", sage_timeit(
+    "assert len(eh(C13, C5, limit=10000)) == 7150", locals(), preparse=False))
+
