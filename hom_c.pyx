@@ -1,7 +1,6 @@
-
+from random import shuffle
+from sage.graphs.graph import Graph
 from sage.graphs.base.dense_graph import DenseGraph
-
-
 from sage.graphs.base.dense_graph cimport CGraph
 
 cdef extern from "string.h":
@@ -35,26 +34,85 @@ def graph_to_cgraph(G, vmap=None, imap=None, graphtype=DenseGraph):
   return CG
 
 
-def order_max_adjacent(G, ordered = None):
-  if ordered is None:
-    ordered = set([])
-  ordered = set(ordered)
+def degree_within(G, v, w):
+  "Return the number of neighbors of `v` in `w`."
+  return len(set(G.neighbors(v)).intersection(set(w)))
+
+
+def sort_vertices_by_degree(G, vs, within=None):
+  """
+  Stable inplace sort of vs by degree in G, optionally
+  only considering neighbors in `within`.
+  """
+  if within is None:
+    vs.sort(cmp=lambda u,v: cmp(G.degree(u), G.degree(v)))
+  else:
+    vs.sort(cmp=lambda u,v: cmp(degree_within(G, u, within),
+                                degree_within(G, v, within)))
+
+def second_dist_to_set(G, v, W):
+  """
+  For vertices adjacent to W, return the lenght of the second shortest
+  path to W. Otherwise return G.order(). WARNING: Not very efficient.
+  """
+  if v in W:
+    return 0
+  # Neighbors in W 
+  nw = set(G.neighbors(v)).intersection(set(W))
+  if len(nw) == 0:
+    return G.order()
+  if len(nw) >= 2:
+    return 1
+  G2 = Graph(G) # always undirected, copy
+  G2.delete_edge(v, nw.pop())
+  ds2 = G2.distance_all_pairs()
+  dist2 = min([ds2[v][u] for u in W])
+  assert dist2 >= 2
+  return dist2
+
+
+def order_max_adjacent(G, ordered = None, priorities=['within', 'dist2', 'degree']):
+  """
+  Order the vertices of G trying to maximize the number of edges from each vertex
+  to their predecessors. Starts with empty sequence and always appends a vertex maximizing
+  the priorities given by `priorities` (W denotes the set of vertices already in the
+  sequence or in `ordered`):
+
+  * 'within' prefers vertices with most neighbors in W.
+  * 'dist2' sorts first vertices adjacent to W by the second shortest path to W, then 
+    all vertices nonadjacent to W. Might be slower to compute.
+  * 'degree' prefers vertices with larger degree in `G`.
+  * 'random' prefers random vertices (randomizes the order)
+
+  If given, `ordered` is taken to be an already preordered sequence of vertices.
+  Only the vertices outside `ordered` are then ordered and returned.
+
+  Returns a list of vertices.
+  """
+
+  ordered = set(ordered or [])
   assert ordered.issubset(set(G.vertices()))
 
   if len(ordered) == G.order():
     return []
 
-  vmax = None
-  adjmax = -1
-  for v in G.vertices():
-    if v not in ordered:
-      adj = len([u for u in G.neighbors(v) if u in ordered])
-      if adj > adjmax:
-        adjmax = adj
-        vmax = v
-  assert adjmax >= 0
+  vs = [v for v in G.vertices() if v not in ordered]
+  for p in reversed(priorities):
+    if p == 'within':
+      sort_vertices_by_degree(G, vs, within=ordered)
+    elif p == 'degree':
+      sort_vertices_by_degree(G, vs)
+    elif p == 'ranfom':
+      shuffle(vs)
+    elif p == 'dist2':
+      # Cache the second distances
+      d2 = dict([(v, second_dist_to_set(G, v, ordered)) for v in vs])
+      vs.sort(cmp=lambda u,v: cmp(d2[u], d2[v]), reverse=True)
+    else:
+      raise Exception('Unknown priority "%s"', p)
 
-  return [vmax] + order_max_adjacent(G, ordered.union([vmax]))
+  v = vs[-1]
+  return [v] + order_max_adjacent(G, ordered.union([v]))
 
 
 def extend_hom(G, H, partmap = None, order = None, limit = 1,
