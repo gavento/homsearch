@@ -130,7 +130,7 @@ def order_max_adjacent(G, ordered = None, priorities = ['within', 'dist2', 'degr
 
 def extend_hom(G, H, partmap = None, order = None, limit = 1,
                Ggraphtype=DenseGraph, Hgraphtype=DenseGraph,
-               check_automorphisms=0):
+               check_automorphisms=0, onlycount=False):
   """
   Recursive routine to extend partial homomorphism G->H given by partmap to a
   full homomorphism. Finds up to limit solutions. Works correctly on digraphs.
@@ -151,9 +151,10 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
               the already targeted vertices) and only try one vertex per orbit.
               check_automorphisms is decreased with every recursion level and
               set to 0 on detection of all singleton orbits.
+    onlycount  do not store all mappings, only return the number (still up to limit)
 
   Returns:
-    list of mappings {v: f(v)}
+    list of mappings {v: f(v)} or their number (with `onlycout` set)
   """
 
   if partmap is None:
@@ -175,9 +176,11 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
   # General init
   n = len(CG.verts())
 
-  cdef int** resmaps_c = <int **>alloca(sizeof(int*) * limit)
-  for i in range(limit):
-    resmaps_c[i] = <int *>alloca(sizeof(int) * n)
+  cdef int** resmaps_c = NULL
+  if not onlycount:
+    resmaps_c = <int **>alloca(sizeof(int*) * limit)
+    for i in range(limit):
+      resmaps_c[i] = <int *>alloca(sizeof(int) * n)
 
   cdef int *partmap_c = <int *>alloca(sizeof(int) * n)
   for v in G.vertices():
@@ -192,6 +195,10 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
 
   r = extend_hom_c(CG, CH, partmap_c, order_c, len(order), resmaps_c, limit,
                    check_automorphisms)
+
+  if onlycount:
+    return r
+
   res = []
   for i in range(r):
     new = {}
@@ -256,7 +263,6 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
       memcpy(resmaps[0], partmap, n * sizeof(int))
     return 1
 
-
   v = tomap[0]
 
   # copy partmap to partmap2
@@ -286,7 +292,6 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
     # automorphism group and orbits of H
     HO = cgraph_to_graph(H)
     Horbits = HO.automorphism_group(partition=Hparts, orbits=True)[1]
-    print Horbits
 
     # set the vertices to try
     hverts_c = len(Horbits)

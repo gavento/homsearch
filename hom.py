@@ -239,6 +239,7 @@ def test():
   from sage.graphs.graph_generators import graphs
   K2 = graphs.CompleteGraph(2)
   K4 = graphs.CompleteGraph(4)
+  K24 = graphs.CompleteGraph(24)
   C16 = graphs.CycleGraph(16)
   Z2_3 = VectorSpace(GF(2), 3)
   Z2_2 = VectorSpace(GF(2), 2)
@@ -249,6 +250,11 @@ def test():
   assert len(extend_hom(C16, K2, limit=10)) == 2
   assert len(extend_hom(C16, K2, partmap={0:0, 2:1}, limit=10)) == 0
 
+  # extend_hom only counting
+  assert extend_hom(K2, K4, partmap={0:0}, limit=10, onlycount=True) == 3
+  # Following would probably segfault if actually allocating 1G entries
+  assert extend_hom(K4, K4, limit=2**30, onlycount=True) == 24
+
   # extend_hom with check_automorphisms
   assert len(extend_hom(K4, K4, limit=100, check_automorphisms=1)) == 6
   assert len(extend_hom(K4, K4, limit=100, check_automorphisms=2)) == 2
@@ -257,6 +263,8 @@ def test():
   assert len(extend_hom(K2, K4, partmap={0:0}, limit=10, check_automorphisms=1)) == 1
   assert len(extend_hom(C16, K2, limit=10, check_automorphisms=1)) == 1
   assert len(extend_hom(C16, K2, partmap={0:0, 2:1}, limit=10, check_automorphisms=2)) == 0
+  # This might be slow
+  assert extend_hom(K24, K24, limit=10, check_automorphisms=42, onlycount=True) == 1
 
   # nonisomorphic_cubes_Z2
   assert len(list(nonisomorphic_cubes_Z2(1))) == 1
