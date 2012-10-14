@@ -3,7 +3,7 @@ Experiments for hypothesis about cube-like graph cores.
 """
 
 import logging as log
-import hom
+import homomorphisms as hom
 
 log.getLogger().setLevel(log.DEBUG)
 

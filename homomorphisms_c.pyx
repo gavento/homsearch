@@ -1,6 +1,11 @@
-from random import shuffle
-from sage.graphs.graph import Graph
+"""
+Cython routines for finding graph homomorphisms.
+Do not use directly, only with the python module.
+"""
+
 from sage.graphs.base.dense_graph import DenseGraph
+
+
 from sage.graphs.base.dense_graph cimport CGraph
 
 cdef extern from "string.h":
@@ -8,124 +13,6 @@ cdef extern from "string.h":
 
 cdef extern from "alloca.h":
   void *alloca(size_t size)
-
-
-def cgraph_to_graph(G, cls=Graph):
-  """
-  Convert a CGraph (without the fancy envelope) to a "normal"
-  Sage Graph (or other class given by `cls`).
-  """
-  G2 = cls()
-  G2.add_vertices(G.verts())
-  for v in G.verts():
-    for u in G.out_neighbors(v):
-      G2.add_edge(v, u)
-  return G2
-
-
-def graph_to_cgraph(G, vmap=None, imap=None, graphtype=DenseGraph):
-  """
-  Convert given Graph to a CGraph (DenseGraph by default) on vertices [0 .. (order-1)]
-  If provided, vmap is filled with {vertex: index}.
-  If provided, imap is filled with {index: vertex}.
-  Returns the CGraph
-  """
-  if vmap is None:
-    vmap = {}
-  if imap is None:
-    imap = {}
-  vs = list(G.vertices())
-
-  CG = graphtype(G.order())
-  for vi in range(len(vs)):
-    v = vs[vi]
-    vmap[v] = vi
-    imap[vi] = v
-
-  for e in G.to_directed().edges():
-    CG.add_arc(vmap[e[0]], vmap[e[1]])
-  return CG
-
-
-def degree_within(G, v, w):
-  "Return the number of neighbors of `v` in `w`."
-  return len(set(G.neighbors(v)).intersection(set(w)))
-
-
-def sort_vertices_by_degree(G, vs, within=None):
-  """
-  Stable inplace sort of vs by degree in G, optionally
-  only considering neighbors in `within`.
-  """
-  if within is None:
-    vs.sort(cmp=lambda u,v: cmp(G.degree(u), G.degree(v)))
-  else:
-    vs.sort(cmp=lambda u,v: cmp(degree_within(G, u, within),
-                                degree_within(G, v, within)))
-
-def second_dist_to_set(G, v, W):
-  """
-  For vertices adjacent to W, return the lenght of the second shortest
-  path to W. Otherwise return G.order(). WARNING: Not very efficient.
-  """
-  if v in W:
-    return 0
-  # Neighbors in W 
-  nw = set(G.neighbors(v)).intersection(set(W))
-  if len(nw) == 0:
-    return G.order()
-  if len(nw) >= 2:
-    return 1
-  G2 = Graph(G) # always undirected, copy
-  G2.delete_edge(v, nw.pop())
-  ds2 = G2.distance_all_pairs()
-  dist2 = min([ds2[v][u] for u in W])
-  assert dist2 >= 2
-  return dist2
-
-
-def order_max_adjacent(G, ordered = None, priorities = ['within', 'dist2', 'degree']):
-  """
-  Order the vertices of G trying to maximize the number of edges from each vertex
-  to their predecessors. Starts with empty sequence and always appends a vertex maximizing
-  the priorities given by `priorities` (W denotes the set of vertices already in the
-  sequence or in `ordered`):
-
-  * 'within' prefers vertices with most neighbors in W.
-  * 'dist2' sorts first vertices adjacent to W by the second shortest path to W, then 
-    all vertices nonadjacent to W. Might be slower to compute.
-  * 'degree' prefers vertices with larger degree in `G`.
-  * 'random' prefers random vertices (randomizes the order)
-
-  If given, `ordered` is taken to be an already preordered sequence of vertices.
-  Only the vertices outside `ordered` are then ordered and returned.
-
-  Returns a list of vertices.
-  """
-
-  ordered = set(ordered or [])
-  assert ordered.issubset(set(G.vertices()))
-
-  if len(ordered) == G.order():
-    return []
-
-  vs = [v for v in G.vertices() if v not in ordered]
-  for p in reversed(priorities):
-    if p == 'within':
-      sort_vertices_by_degree(G, vs, within=ordered)
-    elif p == 'degree':
-      sort_vertices_by_degree(G, vs)
-    elif p == 'ranfom':
-      shuffle(vs)
-    elif p == 'dist2':
-      # Cache the second distances
-      d2 = dict([(v, second_dist_to_set(G, v, ordered)) for v in vs])
-      vs.sort(cmp=lambda u,v: cmp(d2[u], d2[v]), reverse=True)
-    else:
-      raise Exception('Unknown priority "%s"', p)
-
-  v = vs[-1]
-  return [v] + order_max_adjacent(G, ordered=ordered.union([v]), priorities=priorities)
 
 
 def extend_hom(G, H, partmap = None, order = None, limit = 1,
@@ -156,6 +43,8 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
   Returns:
     list of mappings {v: f(v)} or their number (with `onlycout` set)
   """
+
+  from homomorphisms import graph_to_cgraph, order_max_adjacent
 
   if partmap is None:
     partmap = {}
@@ -278,6 +167,8 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
   # H-automorphism elimination, only picks one vertex to try per
   # orbit of H. Potentially inefficient.
   if check_automorphisms > 0:
+    from homomorphisms import cgraph_to_graph
+
     # construct vetrex partition isolating already used vertices of H
     Hused = set([partmap[Gv] for Gv in range(n)])
     Hparts = []
@@ -327,3 +218,4 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
       if resmaps != NULL:
         resmaps += r
   return numres
+

@@ -1,17 +1,15 @@
-import logging as log
+"""
+Routines for generating cube-like graphs and
+finding and verifying their subspace-related homomorphisms.
+"""
 
-from sage.graphs.graph import Graph
+import logging as log
 from sage.modules.free_module import VectorSpace
 from sage.rings.finite_rings.constructor import GF
-from sage.misc.preparser import load
 from sage.misc.misc import powerset
+from sage.graphs.graph import Graph
 
-
-try:
-  load("hom_c.pyx", locals())
-except Exception as e:
-  log.fatal("hom_c.pyx failed to load: %s", e)
-
+from homomorphisms import extend_hom, is_hom
 
 def CayleyGraph(vspace, gens, directed=False):
   """
@@ -58,64 +56,6 @@ def nonisomorphic_cubes_Z2(n, avoid_complete=False):
     seen_graphs.add(canon)
 
     yield (gens, G)
-
-
-def find_hom_image(G, candidates=None):
-  """
-  Tries to find a smaller hom-image of G. Repeatedly sets H:=G\{v} for v in candidates.
-  Returns an induced subgraph on a strictly smaller hom-image, or None if G is a core.
-  candidates defaults to V(G). If G is e.g. vertex-transitive, you may wish to use just
-  one vertex.
-  """
-  if candidates is None:
-    candidates = G.vertices()
-  for v0 in candidates:
-    H = G.copy()
-    H.delete_vertex(v0)
-    maps = extend_hom(G, H, limit=1)
-    if len(maps) >= 1:
-      VC = maps[0].values()
-      C = G.subgraph(VC)
-      return C
-  return None
-
-
-def check_subcore(G, candidates=None):
-  """
-  Tries to find a core, returning a smaller core or None if G is already core.
-  Tries to remove every vertex of tryremove (one at a time), defauts to all.
-  """
-  if candidates is None:
-    candidates = G.vertices()
-  #log.info(tryremove)
-  for v0 in candidates:
-    H = G.copy()
-    H.delete_vertex(v0)
-    maps = extend_hom(G, H, limit=1)
-    if len(maps) >= 1:
-      VC = maps[0].values()
-      C = G.subgraph(VC)
-      return C
-  return None
-
-
-def find_core(G, vertex_trans=False):
-  """
-  Finds a core of a Graph. If G is vertex-transitive, the process is much faster.
-  Returns a core (a subgraph of G) or G itself.
-  Complete graphs are treated specially.
-  """
-  if G.size() == (G.order() * (G.order()-1)) / 2:
-    return G
-  Gold = G
-  rem0 = None
-  if vertex_trans:
-    rem0 = G.vertices()[:1]
-  G = check_subcore(G, candidates=rem0)
-  while G:
-    Gold = G
-    G = find_hom_image(G)
-  return Gold
 
 
 def squash_cube(G, c):
@@ -178,20 +118,6 @@ def squash_cube(G, c):
   return hom
 
 
-def is_hom(G, H, hom):
-  """
-  Check whether hom is a homomorphism from G to H.
-  Works for both directed and undirected.
-  """
-  assert set(G.vertices()) == set(hom.keys())
-  assert set(H.vertices()).issuperset(set(hom.values()))
-  for e in G.edges():
-    u, v = e[0], e[1]
-    if not H.has_edge(hom[u], hom[v]):
-      return False
-  return True
-
-
 def hom_is_by_subspace(G, vs, h, require_isomorphic=True):
   """
   Check whether for a given homomorphism `h`, there is a subspace `span` of `vs` such that
@@ -239,32 +165,8 @@ def test():
   from sage.graphs.graph_generators import graphs
   K2 = graphs.CompleteGraph(2)
   K4 = graphs.CompleteGraph(4)
-  K24 = graphs.CompleteGraph(24)
-  C16 = graphs.CycleGraph(16)
   Z2_3 = VectorSpace(GF(2), 3)
   Z2_2 = VectorSpace(GF(2), 2)
-
-  # extend_hom
-  assert len(extend_hom(K4, K4, limit=100)) == 24
-  assert len(extend_hom(K2, K4, partmap={0:0}, limit=10)) == 3
-  assert len(extend_hom(C16, K2, limit=10)) == 2
-  assert len(extend_hom(C16, K2, partmap={0:0, 2:1}, limit=10)) == 0
-
-  # extend_hom only counting
-  assert extend_hom(K2, K4, partmap={0:0}, limit=10, onlycount=True) == 3
-  # Following would probably segfault if actually allocating 1G entries
-  assert extend_hom(K4, K4, limit=2**30, onlycount=True) == 24
-
-  # extend_hom with check_automorphisms
-  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=1)) == 6
-  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=2)) == 2
-  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=3)) == 1
-  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=4)) == 1
-  assert len(extend_hom(K2, K4, partmap={0:0}, limit=10, check_automorphisms=1)) == 1
-  assert len(extend_hom(C16, K2, limit=10, check_automorphisms=1)) == 1
-  assert len(extend_hom(C16, K2, partmap={0:0, 2:1}, limit=10, check_automorphisms=2)) == 0
-  # This might be slow
-  assert extend_hom(K24, K24, limit=10, check_automorphisms=42, onlycount=True) == 1
 
   # nonisomorphic_cubes_Z2
   assert len(list(nonisomorphic_cubes_Z2(1))) == 1
@@ -275,27 +177,12 @@ def test():
   K4b = CayleyGraph(Z2_2, [(1,0), (0,1), (1,1)])
   assert K4.is_isomorphic(K4b)
 
-  # find_hom_image
-  K4c = find_hom_image(K4.disjoint_union(K4))
-  assert K4.is_isomorphic(K4c)
-
-  # find_core
-  K4d = find_core(K4.disjoint_union(K4).disjoint_union(K4))
-  assert K4.is_isomorphic(K4d)
-
   # squash_cube
   Ge = CayleyGraph(Z2_2, [(1,0), (0,1)])
   Smap = squash_cube(Ge, (1,1))
   K2e = Ge.subgraph(Smap.values())
   assert K2.is_isomorphic(K2e)
   assert is_hom(Ge, K2e, Smap)
-
-  # is_hom
-  for hom in extend_hom(C16, K2, limit=10):
-    assert is_hom(C16, K2, hom)
-  assert raises(lambda: is_hom(K2, K2, {0:0})) # not all vertices mapped
-  assert raises(lambda: is_hom(K2, K2, {0:4})) # some vertices outside K2
-  assert not is_hom(K2, K2, {0:0, 1:0}) # creates a loop
 
   # hom_is_by_subspace
   Gg = CayleyGraph(Z2_3, [(1,0,0), (0,1,0)])
@@ -308,30 +195,5 @@ def test():
   for h in extend_hom(Gg, K2, limit=10):
     assert hom_is_by_subspace(Gg, Z2_3, h, require_isomorphic=True)
 
-
   log.info("All tests passed.")
-
-def benchmark():
-  "Run few simple benchmarks for extend_hom()."
-  log.getLogger().setLevel(log.DEBUG)
-
-  from sage.graphs.graph_generators import graphs
-  from sage.misc.sage_timeit import sage_timeit
-
-  K6 = graphs.CompleteGraph(6)
-  K2 = graphs.CompleteGraph(2)
-  K7_6 = graphs.CompleteBipartiteGraph(7, 6)
-  C16 = graphs.CycleGraph(16)
-  C13 = graphs.CycleGraph(13)
-  C5 = graphs.CycleGraph(5)
-  eh = extend_hom
-
-  log.info("All homs K6 -> K6: %s", sage_timeit(
-    "assert len(eh(K6, K6, limit=10000)) == 720", locals(), preparse=False))
-
-  log.info("All homs K7,6 -> K2: %s", sage_timeit(
-    "assert len(eh(K7_6, K2, limit=10000)) == 2", locals(), preparse=False))
-
-  log.info("All homs C13 -> C5: %s", sage_timeit(
-    "assert len(eh(C13, C5, limit=10000)) == 7150", locals(), preparse=False))
 
