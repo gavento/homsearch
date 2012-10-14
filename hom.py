@@ -249,6 +249,15 @@ def test():
   assert len(extend_hom(C16, K2, limit=10)) == 2
   assert len(extend_hom(C16, K2, partmap={0:0, 2:1}, limit=10)) == 0
 
+  # extend_hom with check_automorphisms
+  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=1)) == 6
+  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=2)) == 2
+  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=3)) == 1
+  assert len(extend_hom(K4, K4, limit=100, check_automorphisms=4)) == 1
+  assert len(extend_hom(K2, K4, partmap={0:0}, limit=10, check_automorphisms=1)) == 1
+  assert len(extend_hom(C16, K2, limit=10, check_automorphisms=1)) == 1
+  assert len(extend_hom(C16, K2, partmap={0:0, 2:1}, limit=10, check_automorphisms=2)) == 0
+
   # nonisomorphic_cubes_Z2
   assert len(list(nonisomorphic_cubes_Z2(1))) == 1
   assert len(list(nonisomorphic_cubes_Z2(2))) == 2
@@ -290,6 +299,7 @@ def test():
   assert not hom_is_by_subspace(Gg, Z2_3, homg, require_isomorphic=True)
   for h in extend_hom(Gg, K2, limit=10):
     assert hom_is_by_subspace(Gg, Z2_3, h, require_isomorphic=True)
+
 
   log.info("All tests passed.")
 

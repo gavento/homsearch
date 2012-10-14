@@ -130,7 +130,7 @@ def order_max_adjacent(G, ordered = None, priorities = ['within', 'dist2', 'degr
 
 def extend_hom(G, H, partmap = None, order = None, limit = 1,
                Ggraphtype=DenseGraph, Hgraphtype=DenseGraph,
-               check_automorphisms=3):
+               check_automorphisms=0):
   """
   Recursive routine to extend partial homomorphism G->H given by partmap to a
   full homomorphism. Finds up to limit solutions. Works correctly on digraphs.
@@ -147,6 +147,10 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
     limit     Maximum number of homomorphisms to look for and return, default 1.
     Ggraphtype, Hgraphtype     The CGraph class to use for C representation of G
               and H. DenseGraph by default.
+    check_automorphisms    If >0, check H for authomorphisms (after coloring
+              the already targeted vertices) and only try one vertex per orbit.
+              check_automorphisms is decreased with every recursion level and
+              set to 0 on detection of all singleton orbits.
 
   Returns:
     list of mappings {v: f(v)}
@@ -222,8 +226,8 @@ cdef int extend_hom_c(CGraph G, CGraph H, int partmap[],
     limit     Maximum number of homomorphisms to look for.
     check_automorphisms    If >0, check H for authomorphisms (after coloring
               the already targeted vertices) and only try one vertex per orbit.
-              check_automorphisms is decreased with every level and set to 0 on
-              detecting all singleton orbits.
+              check_automorphisms is decreased with every recursion level and
+              set to 0 on detection of all singleton orbits.
   Return value: number of homomorphisms found and returned in resmaps
   """
 
