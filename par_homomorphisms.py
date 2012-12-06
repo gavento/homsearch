@@ -70,7 +70,7 @@ def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False, orde
       res.extend(v)
     done += 1
 
-    nth = len(args)/100
+    nth = min(len(args)/100, 1)
     if done <= 42 or (done % nth == 0) or rescount >= limit:
       log.info("%4d of %d done, %d results", done, len(args), rescount)
     if done == 42:
