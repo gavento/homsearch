@@ -245,6 +245,7 @@ def test():
   K2 = graphs.CompleteGraph(2)
   K4 = graphs.CompleteGraph(4)
   K24 = graphs.CompleteGraph(24)
+  C4 = graphs.CycleGraph(4)
   C16 = graphs.CycleGraph(16)
 
   # extend_hom
@@ -252,6 +253,12 @@ def test():
   assert len(extend_hom(K2, K4, partmap={0:0}, limit=10)) == 3
   assert len(extend_hom(C16, K2, limit=10)) == 2
   assert len(extend_hom(C16, K2, partmap={0:0, 2:1}, limit=10)) == 0
+
+  # extend_hom giving partial mappings
+  assert len(extend_hom(C16, C4, partmap={0:0}, order=[0,2,1], limit=100)) == 4
+  assert len(extend_hom(C16, C4, partmap={8:0}, order=[0], limit=100)) == 4
+  assert extend_hom(C16, C4, partmap={4:1}, order=[], limit=100) == [{4:1}]
+  assert extend_hom(C16, C4, order=[], limit=100) == [{}]
 
   # extend_hom only counting
   assert extend_hom(K2, K4, partmap={0:0}, limit=10, onlycount=True) == 3

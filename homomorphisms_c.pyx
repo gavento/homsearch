@@ -31,6 +31,7 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
     order     Sequence of all the unmapped vertices of G giving the order for
               the backtracking. Already mapped vertices are ignored.
               Defaults to heuristic order_max_adjacent().
+              This set does not have to contain all unmapped vertices.
     limit     Maximum number of homomorphisms to look for and return, default 1.
     Ggraphtype, Hgraphtype     The CGraph class to use for C representation of G
               and H. DenseGraph by default.
@@ -52,7 +53,8 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
   if order is None:
     order = order_max_adjacent(G, partmap.keys())
   order = [v for v in order if v not in partmap.keys()]
-  assert set(order).union(set(partmap.keys())) == set(G.vertices())
+  if not (set(order).union(set(partmap.keys())) == set(G.vertices())):
+    pass # not all vertices are to be mapped
 
   # Preprocess to CGraphs
   Gimap = {}
@@ -92,8 +94,9 @@ def extend_hom(G, H, partmap = None, order = None, limit = 1,
   for i in range(r):
     new = {}
     for j in range(n):
-      # Convert vertex mapping back to G and H
-      new[Gimap[j]] = Himap[resmaps_c[i][j]]
+      # Convert vertex mapping back to G and H (if defined)
+      if resmaps_c[i][j] >= 0:
+        new[Gimap[j]] = Himap[resmaps_c[i][j]]
     res.append(new)
 
   return res
