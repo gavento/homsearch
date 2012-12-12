@@ -16,10 +16,17 @@ from sage.misc.preparser import load
 from sage.graphs.base.dense_graph import DenseGraph
 
 
+log = logging.getLogger("hom")
+log.setLevel(logging.INFO)
+
+# Initialize logging if not already initialized
+if not logging.root.handlers:
+  logging.basicConfig(format="%(asctime)s %(levelname)s [%(name)s]: %(msg)s", datefmt="%Y-%m-%d %H:%M:%S")
+
 try:
   load("homomorphisms_c.pyx", locals())
 except Exception as e:
-  logging.fatal("homomorphisms_c.pyx failed to load: %s", e)
+  log.fatal("homomorphisms_c.pyx failed to load: %s", e)
 
 
 ### Heurisrics for branching vertex order

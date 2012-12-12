@@ -1,13 +1,17 @@
 import homomorphisms as hom
-import logging as log
+import logging
 import collections
 from sage.parallel.decorate import parallel
 
+
+log = logging.getLogger("hom")
+
+
 @parallel() # Guess no of CPUs
 def parallel_extend_hom_partmaps(G, H, partmap, kwargs):
-  log.debug("Running extend_hom with %s"%(partmap))
+  log.debug("Running extend_hom with %s" % (partmap))
   res = hom.extend_hom(G, H, partmap=partmap, **kwargs)
-  log.debug("Done    extend_hom with %s"%(partmap))
+  log.debug("Done    extend_hom with %s" % (partmap))
   return res
 
 
@@ -64,8 +68,8 @@ def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False,
 
     # adjust branch depth to be at most order
     bd = min(bd, len(order))
-    log.info("Finding partial maps of depth %d (of %d) from %d partial maps of depth %d.",
-             bd, len(order), len(partmaps), curlen)
+    log.info("Finding partial maps of depth %d (of %d) from %d partial maps of depth %d." %
+             (bd, len(order), len(partmaps), curlen))
 
     # Order restricted to unmapped vertices 
     curorder = [x for x in order if x not in mapped]
@@ -91,7 +95,7 @@ def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False,
     done = 0
     jobs = parallel_extend_hom_partmaps(args)
 
-    log.info(" %4d of %d done, %d results", done, len(args), rescount)
+    log.info(" %4d of %d done, %d results" % (done, len(args), rescount))
 
     # Monitor the jobs as they are finished
     for k,v in jobs:
@@ -107,9 +111,9 @@ def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False,
       nth = max(len(args) / (100 if finalrun else 20), 1)
       allupto = 5
       if done <= allupto or (done % nth == 0) or rescount >= limit:
-        log.info(" %4d of %d done, %d results", done, len(args), rescount)
+        log.info(" %4d of %d done, %d results" % (done, len(args), rescount))
       if done == allupto and nth > 1:
-        log.info(" [from now on reporting only every %d-th]", nth)
+        log.info(" [from now on reporting only every %d-th]" % (nth))
 
       # Watch for end conditions on final run
       if finalrun:
@@ -140,7 +144,6 @@ def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False,
 
 def test():
   "Some unit tests"
-  log.getLogger().setLevel(log.DEBUG)
 
   from sage.graphs.graph_generators import graphs
   K2 = graphs.CompleteGraph(2)
@@ -167,4 +170,5 @@ def test():
   assert (sorted(parallel_extend_hom(C4, K24, branchdepth=[1,0,2,3,2], limit=10000, check_automorphisms=14)) ==
       [{0: 1, 1: 0, 2: 1, 3: 0}, {0: 1, 1: 2, 2: 1, 3: 0}, {0: 2, 1: 0, 2: 1, 3: 0}, {0: 3, 1: 2, 2: 1, 3: 0}])
 
-  logging.info("All tests passed.")
+  log.info("All tests passed.")
+
