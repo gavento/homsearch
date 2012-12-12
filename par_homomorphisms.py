@@ -17,7 +17,8 @@ def parallel_extend_hom_partmaps(G, H, partmap, kwargs):
 
 def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False,
                         order=None, limit=1, branchlimit=10000,
-                        check_automorphisms=0, **kwargs):
+                        check_automorphisms=0, shuffle_jobs=False,
+                        **kwargs):
   """
   Find homomorphism extensions in parallel using `extend_hom`.
   
@@ -88,6 +89,10 @@ def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False,
       # proper depth of automorphism checking
       kwcopy.update(check_automorphisms = max(check_automorphisms + len(partmap) - curlen, 0))
       args.append((G, H, pm, kwcopy))
+
+    # Experimental - shuffle the job order
+    if shufflejobs:
+      random.shuffle(args)
 
     # Run the jobs
     rescount = 0
