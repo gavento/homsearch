@@ -1,7 +1,10 @@
-import homomorphisms as hom
-import logging
 import collections
+import logging
+import random
+
 from sage.parallel.decorate import parallel
+
+import homomorphisms as hom
 
 
 log = logging.getLogger("hom")
@@ -91,7 +94,7 @@ def parallel_extend_hom(G, H, partmap=None, branchdepth=3, onlycount=False,
       args.append((G, H, pm, kwcopy))
 
     # Experimental - shuffle the job order
-    if shufflejobs:
+    if shuffle_jobs:
       random.shuffle(args)
 
     # Run the jobs
