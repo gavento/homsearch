@@ -1,4 +1,4 @@
-#include "homsearch-lib.h"
+#include "homsearch_lib.h"
 
 #include <iostream>
 
@@ -15,16 +15,17 @@ int main()
     const int v3[] = {0,4,2}; push_array(G, v3);
     const int v4[] = {0,3}; push_array(G, v4);
 
-    homsearch_generic *h = new_homsearch(G, G, 100, true, true, -1);
+    homsearch *h = new_homsearch(G, G, 100, true, true, -1);
     h->search(0);
 
-    cout << "res: " << h->res_count << ", max_depth: " << h->max_depth << "\n";
     for (auto r: h->res_list) {
-        for (auto fv: r) {
+        for (auto fv: r)
             cout << fv << " ";
-        }
         cout << "\n";
     }
+    assert(h->res_count == 6);
 
     delete h;
+
+    return 0;
 }

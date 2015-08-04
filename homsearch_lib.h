@@ -1,3 +1,7 @@
+
+#ifndef _HOMSEARCH_LIB_H_
+#define _HOMSEARCH_LIB_H_
+
 #include <bitset>
 #include <vector>
 #include <cassert>
@@ -9,10 +13,10 @@
 using namespace std;
 
 
-/////////////////////
-// Generic interface
+/////////////////////////////////////
+// Generic interface - virtual class
 
-class homsearch_generic {
+class homsearch {
    public:
     // Graphs
     const vector<vector<int> > G;
@@ -29,25 +33,22 @@ class homsearch_generic {
     bool retract_mode;
 
    public:
-    homsearch_generic(const vector<vector<int> > G_, const vector<vector<int> > H_,
+    homsearch(const vector<vector<int> > &G_, const vector<vector<int> > &H_,
               long long int res_limit_, bool res_store_, bool retract_mode_, int max_depth_):
       G(G_), H(H_), 
       res_limit(res_limit_), res_count(0), res_list(), res_store(res_store_),
       max_depth(max_depth_), retract_mode(retract_mode_) {}
 
-    homsearch_generic(const homsearch_generic &from):
+    homsearch(const homsearch &from):
       G(from.G), H(from.H),
       res_limit(from.res_limit), res_count(0), res_list(), res_store(from.res_store),
       max_depth(from.max_depth), retract_mode(from.retract_mode) {}
 
-    virtual ~homsearch_generic() = default;
+    virtual ~homsearch() = default;
 
    public:
 
-    virtual void search_vector(const vector<int> &f, int depth = 0)
-    {
-        throw logic_error("search_vector not implemented in homsearch_generic.");
-    }
+    virtual void search_vector(const vector<int> &f, int depth = 0) = 0;
 
     virtual void search(int depth = 0)
     {
@@ -63,7 +64,7 @@ class homsearch_generic {
 // Search state struct for particular set sizes
 
 template< size_t size_lim >
-class homsearch;
+class homsearch_impl;
 
 template< size_t size_lim >
 class homsearch_state {
@@ -75,10 +76,10 @@ class homsearch_state {
     vector<bitset<size_lim> > candidates;
 
     // Convenience pointer
-    const homsearch<size_lim> *search;
+    const homsearch_impl<size_lim> *search;
 
   public:
-    homsearch_state(const homsearch<size_lim> *search_, const vector<int> *f_ = NULL):
+    homsearch_state(const homsearch_impl<size_lim> *search_, const vector<int> *f_ = NULL):
       f(search_->G.size()), candidates(search_->G.size()), search(search_)
     {
         assert((f_ == NULL) || (f_->size() == search->G.size()));
@@ -169,16 +170,16 @@ class homsearch_state {
 // Implementations for particular fixed set sizes
 
 template< size_t size_lim >
-class homsearch: public homsearch_generic {
+class homsearch_impl: public homsearch {
 
    public:
     vector <bitset<size_lim> > G_neighbors;
     vector<bitset<size_lim> > H_neighbors;
 
    public:
-    homsearch(const vector<vector<int> > G_, const vector<vector<int> > H_,
+    homsearch_impl(const vector<vector<int> > &G_, const vector<vector<int> > &H_,
               long long int res_limit_, bool res_store_, bool retract_mode_, int max_depth_ = -1):
-      homsearch_generic(G_, H_, res_limit_, res_store_, retract_mode_, max_depth_),
+      homsearch(G_, H_, res_limit_, res_store_, retract_mode_, max_depth_),
       G_neighbors(G.size()), H_neighbors(H.size())
     {   
         // Neighbor map in G
@@ -192,11 +193,11 @@ class homsearch: public homsearch_generic {
                 H_neighbors[v][i] = 1;
     }
 
-    homsearch(const homsearch<size_lim> &from):
-      homsearch_generic(from),
+    homsearch_impl(const homsearch_impl<size_lim> &from):
+      homsearch(from),
       G_neighbors(from.G_neighbors), H_neighbors(from.H_neighbors) {}
 
-    virtual ~homsearch() = default;
+    virtual ~homsearch_impl() = default;
 
 
    public:
@@ -218,7 +219,7 @@ class homsearch: public homsearch_generic {
 };
 
 template< size_t size_lim >
-void homsearch<size_lim>::search_state(const homsearch_state<size_lim> &s, int depth)
+void homsearch_impl<size_lim>::search_state(const homsearch_state<size_lim> &s, int depth)
 {
     // Select branching vertex minimizing #candidates and
     int v = -1;
@@ -272,15 +273,10 @@ void homsearch<size_lim>::search_state(const homsearch_state<size_lim> &s, int d
 }
 
 
-//////////////////////////////////////////////////////
-// Helper to create the right instance of homsearch<>
-//
-homsearch_generic *new_homsearch(const vector<vector<int> > &G, const vector<vector<int> > &H,
-              long long int res_limit, bool res_store, bool retract_mode, int max_depth=-1)
-{
-    int max_size = max(G.size(), H.size());
-    if (max_size <= 16)
-        return new homsearch<16>(G, H, res_limit, res_store, retract_mode, max_depth);
-    throw logic_error("homsearch not implemented for graphs larger than 4096");
-}
+///////////////////////////////////////////////////////////
+// Helper to create the right instance of homsearch_impl<>
 
+extern homsearch *new_homsearch(const vector<vector<int> > &G, const vector<vector<int> > &H,
+              long long int res_limit, bool res_store, bool retract_mode, int max_depth=-1);
+
+#endif // _HOMSEARCH_LIB_H_
