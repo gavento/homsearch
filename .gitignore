@@ -1,1 +1,8 @@
 *.pyc
+*.o
+*.so
+*.swp
+/homsearch_test
+/build/
+/.gdb_history
+/homsearch_interface.cpp
