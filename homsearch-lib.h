@@ -2,38 +2,91 @@
 #include <vector>
 #include <cassert>
 #include <cstdint>
+#include <iostream>
+#include <stdexcept>
+#include <algorithm>
 
 using namespace std;
 
-#define MAX_GRAPH_SIZE 256
+
+/////////////////////
+// Generic interface
+
+class homsearch_generic {
+   public:
+    // Graphs
+    const vector<vector<int> > G;
+    const vector<vector<int> > H;
+
+    // Results
+    long long int res_limit;
+    long long int res_count;
+    vector<vector<int> > res_list;
+    bool res_store;
+
+    // Options
+    int max_depth;
+    bool retract_mode;
+
+   public:
+    homsearch_generic(const vector<vector<int> > G_, const vector<vector<int> > H_,
+              long long int res_limit_, bool res_store_, bool retract_mode_, int max_depth_):
+      G(G_), H(H_), 
+      res_limit(res_limit_), res_count(0), res_list(), res_store(res_store_),
+      max_depth(max_depth_), retract_mode(retract_mode_) {}
+
+    homsearch_generic(const homsearch_generic &from):
+      G(from.G), H(from.H),
+      res_limit(from.res_limit), res_count(0), res_list(), res_store(from.res_store),
+      max_depth(from.max_depth), retract_mode(from.retract_mode) {}
+
+    virtual ~homsearch_generic() = default;
+
+   public:
+
+    virtual void search_vector(const vector<int> &f, int depth = 0)
+    {
+        throw logic_error("search_vector not implemented in homsearch_generic.");
+    }
+
+    virtual void search(int depth = 0)
+    {
+        vector<int> f0(G.size(), -1);
+        search_vector(f0, depth);
+    }
+
+};
+
+
+
+////////////////////////////////////////////////
+// Search state struct for particular set sizes
 
 template< size_t size_lim >
 class homsearch;
 
 template< size_t size_lim >
-class search_state {
+class homsearch_state {
   public:
     // Partial map, -1 for unmapped vertices
     vector<int> f;
 
     // Candidate targets for every vertex
     vector<bitset<size_lim> > candidates;
-    vector<int> candidates_c;
 
     // Convenience pointer
     const homsearch<size_lim> *search;
 
   public:
-    search_state(const homsearch<size_lim> *search_, const vector<int> *f_ = NULL):
-      f(search_->G.size()), candidates(search_->G.size()), candidates_c(search_->G.size()), search(search_)
+    homsearch_state(const homsearch<size_lim> *search_, const vector<int> *f_ = NULL):
+      f(search_->G.size()), candidates(search_->G.size()), search(search_)
     {
-        assert((f_ == NULL) || (f_->size() == G.size()));
+        assert((f_ == NULL) || (f_->size() == search->G.size()));
 
         // Initialize full candidate lists
         for (unsigned int v = 0; v < search_->G.size(); v++) {
             for (unsigned int i = 0; i < search_->H.size(); i++)
                   candidates[v][i] = 1;
-            candidates_c[v] = search_->H.size();
         }
 
         // Set partial map and limit candidates
@@ -46,72 +99,117 @@ class search_state {
         }
     }
 
-    // Limit the candidates of v to neighbors of n
-    void inline limit_to_neighbors(int v, int n)
+    // Set one vertex map, limit neighbor candidates and other heuristics
+    // Returns success: if false, contradiction was found and mapping is not valid, state is broken
+    bool inline set_map(int v, int fv)
     {
-	candidates[v] &= search->H_neighbors[n];
-	candidates_c[v] = candidates[v].count();
-    }
-
-    // Set one vertex map and limit neighbor candidates
-    void inline set_map(int v, int fv)
-    {
+        assert(candidates[v][fv]);
+        assert(f[v] == -1);
 	f[v] = fv;
-	for (int n: search->G[v]) {
-	    limit_to_neighbors(n, fv);
-	}
-    }
 
+        // Find dist=1 vertices
+        bitset<size_lim> N1G = search->G_neighbors[v];
+        bitset<size_lim> N1H = search->H_neighbors[fv];
+
+        // Limit dist=1 neighborhood candidates
+        for (unsigned int n = 0; n < N1G.size(); n++)
+            if ((f[n] == -1) && (N1G[n]))
+                candidates[n] &= N1H;
+
+        // Find dist=2 vertices
+        bitset<size_lim> N2G;
+        for (unsigned int n = 0; n < N1G.size(); n++)
+            if (N1G[n])
+                N2G |= search->G_neighbors[n];
+        bitset<size_lim> N2H;
+        for (unsigned int n = 0; n < N1H.size(); n++)
+            if (N1H[n])
+                N2H |= search->H_neighbors[n];
+                
+        // Limit dist=2 neighborhood candidates
+        for (unsigned int n = 0; n < N2G.size(); n++)
+            if ((f[n] == -1) && (N2G[n]))
+                candidates[n] &= N2H;
+
+        cout << "set_map(" << v << ", " << fv << ")\n    N1G=" << N1G << " N1H=" << N1H << "\n    N2G=" << N2G << " N2H=" << N2H << "\n";
+
+        if (search->retract_mode) {
+
+            // Retract/core heuristics
+
+            // Target not mapped or fix-point (consistency of past candidates)
+            assert((f[fv] == -1) || (f[fv] == fv));
+
+            // Non-mapped target must be fix-point
+            if (f[fv] == -1) {
+                if (! candidates[fv][fv])
+                    return false;
+                if (! set_map(fv, fv))
+                    return false;
+            }
+
+            // If this is not a fix-point, disable it as a target
+            if (fv != v)
+                for (unsigned int i = 0; i < candidates.size(); i ++)
+                    if (f[i] == -1) {
+                        candidates[i][v] = 0;
+                    }
+        } else {
+
+            // Homomorphism heuristics
+
+        }
+
+        return true;
+    }
 };
 
+
+//////////////////////////////////////////////////
+// Implementations for particular fixed set sizes
+
 template< size_t size_lim >
-class homsearch {
+class homsearch: public homsearch_generic {
+
    public:
-    // Graphs and neighbourhoods - external arrays
-    const vector<vector<int> > G;
     vector <bitset<size_lim> > G_neighbors;
-
-    const vector<vector<int> > H;
     vector<bitset<size_lim> > H_neighbors;
-
-    // Results
-    long long int res_limit;
-    long long int res_count;
-    vector<vector<int> > res_list;
-    bool res_store;
-
-    int max_depth;
-    bool retract_mode;
 
    public:
     homsearch(const vector<vector<int> > G_, const vector<vector<int> > H_,
               long long int res_limit_, bool res_store_, bool retract_mode_, int max_depth_ = -1):
-      G(G_), G_neighbors(G.size()), H(H_), H_neighbors(H.size()),
-      res_count(0), res_limit(res_limit_), res_list(), res_store(res_store_),
-      retract_mode(retract_mode_), max_depth(max_depth_)
+      homsearch_generic(G_, H_, res_limit_, res_store_, retract_mode_, max_depth_),
+      G_neighbors(G.size()), H_neighbors(H.size())
     {   
         // Neighbor map in G
-        for (int v = 0; v < G.size(); v++)
+        for (unsigned int v = 0; v < G.size(); v++)
             for (auto i: G[v])
                 G_neighbors[v][i] = 1;
 
         // Neighbor map in H
-        for (int v = 0; v < H.size(); v++)
+        for (unsigned int v = 0; v < H.size(); v++)
             for (auto i: H[v])
                 H_neighbors[v][i] = 1;
     }
 
-    homsearch(const homsearch &from):
-      G(from.G), G_neighbors(from.G_neighbors), H(from.H), H_neighbors(from.H_neighbors),
-      res_count(0), res_limit(from.res_limit), res_list(), res_store(from.res_store),
-      max_depth(from.max_depth), retract_mode(from.retract_mode) { }
+    homsearch(const homsearch<size_lim> &from):
+      homsearch_generic(from),
+      G_neighbors(from.G_neighbors), H_neighbors(from.H_neighbors) {}
+
+    virtual ~homsearch() = default;
 
 
    public:
-    void search(const search_state<size_lim> &s, int depth = 0);
+    virtual void search_state(const homsearch_state<size_lim> &s, int depth = 0);
+
+    virtual void search_vector(const vector<int> &f, int depth = 0)
+    {
+        homsearch_state<size_lim> s0(this, &f);
+        search_state(s0, depth);
+    }
 
    protected:
-    void add_res(const search_state<size_lim> &s)
+    void add_res(const homsearch_state<size_lim> &s)
     {
         if (res_store && (res_count < res_limit))
             res_list.push_back(s.f);
@@ -119,25 +217,32 @@ class homsearch {
     }
 };
 
-
 template< size_t size_lim >
-void homsearch<size_lim>::search(const search_state<size_lim> &s, int depth)
+void homsearch<size_lim>::search_state(const homsearch_state<size_lim> &s, int depth)
 {
     // Select branching vertex minimizing #candidates and
     int v = -1;
     int min_cand = H.size() + 1;
     int max_deg = -1;
 
+//    cout << "\nsearch d = " << depth << " / " << max_depth << "\n";
+//    for (unsigned int i = 0; i < G.size(); i ++)
+//        cout << i << " " << s.f[i] << " " << s.candidates[i] << "\n";
+
     for (unsigned int i = 0; i < G.size(); i ++) {
-	if ((s.f[i] == -1) && (s.candidates_c[i] <= min_cand)) {
-	    if ((s.candidates_c[i] < min_cand) || (G[i].size() > max_deg)) {
+        int ccount = s.candidates[i].count();
+	if ((s.f[i] == -1) && (ccount <= min_cand)) {
+	    if ((ccount < min_cand) || ((int)G[i].size() > max_deg)) {
 		max_deg = G[i].size();
-		min_cand = s.candidates_c[i];
+		min_cand = ccount;
 		v = i;
 	    }
 	}
     }
-    assert(min_cand > 0);
+
+    // Some vertex has no candidates
+    if (min_cand == 0)
+        return;
 
     // All vertices have been mapped
     if (v == -1) {
@@ -151,99 +256,31 @@ void homsearch<size_lim>::search(const search_state<size_lim> &s, int depth)
 	if (! s.candidates[v][fv]) continue;
 
 	// Create subsearch
-        search_state<size_lim> s2 = s;
-	s2.set_map(v, fv);
-
-	// Handle retract/core heuristics
-	assert((s2.f[fv] == -1) || (s2.f[fv] == fv));
-        if (s2.f[fv] == -1) {
-            s2.set_map(fv, fv);
-        }
-        if (fv != v)
-            for (unsigned int i = 0; i < G.size(); i ++)
-                if (s2.f[i] == -1) {
-                    s2.candidates[i][v] = 0;
-                    s2.candidates_c[i] = s2.candidates[i].count();
-                }
+        homsearch_state<size_lim> s2(s);
+	
+        // Set map, check consistency
+        if (! s2.set_map(v, fv))
+            continue;
 
 	// Run subsearch
-        if ((max_depth >= 0) && (depth < max_depth))
-            search(s2, depth + 1);
-        else
+        if ((max_depth >= 0) && (depth >= max_depth)) {
             add_res(s2);
+        } else {
+            search_state(s2, depth + 1);
+        }
     }
 }
 
 
-
-
-/*
-
-template< std::size_t G_size_lim, std::size_t H_size_lim >
-void homsearch<G_size_lim, H_size_lim>::search()
+//////////////////////////////////////////////////////
+// Helper to create the right instance of homsearch<>
+//
+homsearch_generic *new_homsearch(const vector<vector<int> > &G, const vector<vector<int> > &H,
+              long long int res_limit, bool res_store, bool retract_mode, int max_depth=-1)
 {
-    int v = -1;
-
-    // Select branching vertex
-    int min_cand = H_size + 1;
-    int max_deg = -1;
-
-    for (int i = 0; i < H_size; i ++) {
-	if ((f[i] != -1) && (candidates_c[i] <= min_cand)) {
-	    if ((candidates_c[i] < min_cand) || (G_degs[i] > max_deg)) {
-		max_deg = G_degs[i];
-		min_cand = candidates_c[i];
-		v = i;
-	    }
-	}
-    }
-
-    // All vertices mapped
-    if (v == -1) {
-	res_count ++;
-	if (res_list) {
-	    vector<int> vec(G_size, -1);
-	    for (int i = 0; i < G_size; i ++)
-		vec[i] = f[i];
-	    res_list->push_back(vec);
-	}
-	return;
-    }
-	
-	
-    // Go over the candidates
-    for (int fv = 0; (fv < H_size) && (res_limit > res_count); fv ++) {
-	if (! candidates[v][fv]) continue;
-
-	// Subsearch
-	homsearch h2 = *this;
-	h2.set_map(v, fv);
-
-	// Handle retracting heuristics
-	if (retract) {
-	    assert((f[fv] == -1) || (f[fv] == fv));
-	    if (f[fv] == -1) {
-		h2.set_map(fv, fv);
-	    }
-	    if (fv != v)
-		for (int i = 0; i < H_size; i ++)
-		    if (f[i] == -1) {
-			if (candidates[i][v])
-			    candidates_c[i] --;
-			candidates[i][v] = 0;
-		    }
-	}
-
-	// Run subsearch
-	h2.search();
-	res_count = h2.res_count;
-    }
+    int max_size = max(G.size(), H.size());
+    if (max_size <= 16)
+        return new homsearch<16>(G, H, res_limit, res_store, retract_mode, max_depth);
+    throw logic_error("homsearch not implemented for graphs larger than 4096");
 }
-*/
-
-typedef search_state<32> search_state32;
-typedef homsearch<32> homsearch32;
-
-typedef search_state<256> search_state256;
-typedef homsearch<256> homsearch256;
 
