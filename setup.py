@@ -3,8 +3,8 @@ from distutils.core import setup, Extension
 from Cython.Build import cythonize
 
 extension = Extension(
-           "homsearch",                 # module name
-           sources=["homsearch.pyx", "homsearch-lib.cpp"],  # source files
+           "homsearch_interface",                 # module name
+           sources=["homsearch_interface.pyx", "homsearch_lib.cpp"],  # source files
            language="c++",             # generate C++ code
            extra_compile_args=['-std=c++11'],
            )
