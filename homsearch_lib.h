@@ -72,6 +72,11 @@ class homsearch_state {
     // Partial map, -1 for unmapped vertices
     vector<int> f;
 
+    // Is the state consistent?
+    // If not, there are no maps to be found
+    // May happen e.g. when inextensible or invalid map given
+    bool state_valid;
+    
     // Candidate targets for every vertex
     vector<bitset<size_lim> > candidates;
 
@@ -80,7 +85,7 @@ class homsearch_state {
 
   public:
     homsearch_state(const homsearch_impl<size_lim> *search_, const vector<int> *f_ = NULL):
-      f(search_->G.size()), candidates(search_->G.size()), search(search_)
+      f(search_->G.size(), -1), state_valid(true), candidates(search_->G.size()), search(search_)
     {
         assert((f_ == NULL) || (f_->size() == search->G.size()));
 
@@ -91,11 +96,15 @@ class homsearch_state {
         }
 
         // Set partial map and limit candidates
-        for (unsigned int i = 0; i < search->G.size(); i++) {
-            if (f_ && ((*f_)[i] != -1)) {
-                set_map(i, (*f_)[i]);
-            } else {
-                f[i] = -1;
+        if (f_) {
+            for (unsigned int i = 0; i < search->G.size(); i++) {
+                if ((*f_)[i] != -1) {
+//                    cout << i << " -> " << (*f_)[i] << "\n";
+                    if (! set_map(i, (*f_)[i])) {
+                        // Such partial mapping is not extendible!
+                        state_valid = false;
+                    }
+                }
             }
         }
     }
@@ -104,6 +113,8 @@ class homsearch_state {
     // Returns success: if false, contradiction was found and mapping is not valid, state is broken
     bool inline set_map(int v, int fv)
     {
+        if (!state_valid)
+            return false;
         assert(candidates[v][fv]);
         assert(f[v] == -1);
 	f[v] = fv;
@@ -132,7 +143,7 @@ class homsearch_state {
             if ((f[n] == -1) && (N2G[n]))
                 candidates[n] &= N2H;
 
-        cout << "set_map(" << v << ", " << fv << ")\n    N1G=" << N1G << " N1H=" << N1H << "\n    N2G=" << N2G << " N2H=" << N2H << "\n";
+//        cout << "set_map(" << v << ", " << fv << ")\n    N1G=" << N1G << " N1H=" << N1H << "\n    N2G=" << N2G << " N2H=" << N2H << "\n";
 
         if (search->retract_mode) {
 
@@ -221,6 +232,10 @@ class homsearch_impl: public homsearch {
 template< size_t size_lim >
 void homsearch_impl<size_lim>::search_state(const homsearch_state<size_lim> &s, int depth)
 {
+    // Valid state given?
+    if (! s.state_valid)
+        return;
+    
     // Select branching vertex minimizing #candidates and
     int v = -1;
     int min_cand = H.size() + 1;
