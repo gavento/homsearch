@@ -1,4 +1,4 @@
-(Fast) graph homomorphism and core searching
+Fast graph homomorphism and core searching
 ============================================
 
 Works with graphs from Sage and NetworkX.
