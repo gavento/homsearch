@@ -1,7 +1,7 @@
 PYTHON=python
 .PHONY: all clean test
 
-all: homsearch_test homsearch_interface.so
+all: homsearch_interface.so
 
 clean:
 	rm -rf homsearch_test build/ homsearch_interface.cpp homsearch_interface.so
