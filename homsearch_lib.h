@@ -23,6 +23,10 @@
 #ifndef _HOMSEARCH_LIB_H_
 #define _HOMSEARCH_LIB_H_
 
+// Distance-based candidate heuristics
+#define LIMIT_D2
+// #define LIMIT_D3
+
 #include <bitset>
 #include <vector>
 #include <cassert>
@@ -149,6 +153,8 @@ class homsearch_state {
             if ((f[n] == -1) && (N1G[n]))
                 candidates[n] &= N1H;
 
+#ifdef LIMIT_D2
+
         // Find dist=2 vertices
         bitset<size_lim> N2G;
         for (unsigned int n = 0; n < N1G.size(); n++)
@@ -163,6 +169,26 @@ class homsearch_state {
         for (unsigned int n = 0; n < N2G.size(); n++)
             if ((f[n] == -1) && (N2G[n]))
                 candidates[n] &= N2H;
+
+#ifdef LIMIT_D3
+
+        // Find dist=3 vertices
+        bitset<size_lim> N3G;
+        for (unsigned int n = 0; n < N2G.size(); n++)
+            if (N2G[n])
+                N3G |= search->G_neighbors[n];
+        bitset<size_lim> N3H;
+        for (unsigned int n = 0; n < N2H.size(); n++)
+            if (N2H[n])
+                N3H |= search->H_neighbors[n];
+
+        // Limit dist=3 neighborhood candidates
+        for (unsigned int n = 0; n < N3G.size(); n++)
+            if ((f[n] == -1) && (N3G[n]))
+                candidates[n] &= N3H;
+
+#endif // LIMIT_D3
+#endif // LIMIT_D2
 
 //        cout << "set_map(" << v << ", " << fv << ")\n    N1G=" << N1G << " N1H=" << N1H << "\n    N2G=" << N2G << " N2H=" << N2H << "\n";
 
