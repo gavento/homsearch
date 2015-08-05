@@ -15,7 +15,7 @@ int main()
     const int v3[] = {0,4,2}; push_array(G, v3);
     const int v4[] = {0,3}; push_array(G, v4);
 
-    homsearch *h = new_homsearch(G, G, 100, true, true, -1);
+    homsearch *h = new_homsearch(G, G, -1, true, true, -1);
     h->search(0);
 
     for (auto r: h->res_list) {

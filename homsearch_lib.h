@@ -212,7 +212,7 @@ class homsearch_impl: public homsearch {
    protected:
     void add_res(const homsearch_state<size_lim> &s)
     {
-        if (res_store && (res_count < res_limit))
+        if (res_store && ((res_count < res_limit) || (res_limit == -1)))
             res_list.push_back(s.f);
         res_count ++;
     }
@@ -253,7 +253,7 @@ void homsearch_impl<size_lim>::search_state(const homsearch_state<size_lim> &s, 
 
     // Go over the candidates for v
     for (unsigned int fv = 0; (fv < H.size()); fv ++) {
-        if (res_count >= res_limit) break;
+        if ((res_limit >= 0) && (res_count >= res_limit)) break;
 	if (! s.candidates[v][fv]) continue;
 
 	// Create subsearch
